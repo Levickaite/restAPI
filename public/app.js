@@ -227,3 +227,5 @@ function App() {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
+
+//bandžiau pridėt mapą su markais, kur yra developeriai. nesu tikra ar kitur veeikia, nes bent jau pas mane networke rodė klaidą, kad leafletas blokuoja man :D:D
