@@ -1,5 +1,49 @@
 const { useState, useEffect } = React;
+const leafletCssLink = document.createElement('link')
+leafletCssLink.rel='stylesheet'
+leafletCssLink.href= 'https://unpkg.com.leaflet@1.9.4/dist.leaflet.css'
+document.head.appendChild(leafletCssLink)
 
+const leafletScript =document.createElement('script')
+leafletScript.src = 'https://unpkg.com.leaflet@1.9.4/dist/leaflet.js'
+document.body.appendChild(leafletScript)
+
+
+function DevMap({devs}){
+    const mapRef =React.useRef(null)
+    React.useEffect(()=>{
+        if(!mapRef.current) return
+        if( !window.L) return
+        if(mapRef.current._leaflet_id){
+            mapRef.current._leaflet_id=null
+            mapRef.current.innerHTML = ""
+        }
+
+        const map =L.map(mapRef.current).setView([0,0],2)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map)
+
+        const markers = devs.map(dev=>{
+            const lat = dev.location.coordinates[1]
+            const lng = dev.location.coordinates[0]
+            const marker =L.marker([lat, lng]).addTo(map)
+            marker.bindPopup(
+                `<strong>${dev.vardas}</strong><br>` +
+                `${dev.tech.join(', ')}<br>` +
+                `${dev.laisvas ? 'laisvas' : 'užimtas'}`
+            )
+            .openPopup()
+            return marker;
+        })
+
+        if (markers.length){
+            const group = L.featureGroup(markers)
+            map.fitBounds(group.getBounds().pad(0.2))
+        }
+    }, [devs])
+    return React.createElement('div', {ref: mapRef, style: {width: '100%', height: '400px', margin: '10px'}})
+}
 function App() {
   const [devs, setDevs] = useState([]);
   const [form, setForm] = useState({
@@ -18,13 +62,13 @@ function App() {
 
   const fetchDevs = async () => {
     try {
-        let url = '/programuotojai'
-        if(form.lng && form.lat){
-            url += `?lng=${form.lng}&lat=${form.lat}`
+        let url = '/api/programuotojai'
+        if(search.lng && search.lat){
+            url += `?lng=${search.lng}&lat=${search.lat}`
         }
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Tinklo klaida');
-      const data = await response.json();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Tinklo klaida');
+      const data = await res.json();
       setDevs(data);
     } catch (err) {
       console.log(err);
@@ -42,14 +86,14 @@ function App() {
     e.preventDefault();
     const devData = {
       vardas: form.vardas,
-      tech: form.tech.split(',').map(t => t.trim()),
+      tech: form.tech.split(',').map(t=> t.trim()),
       laisvas: form.laisvas,
       location: { type: 'Point', coordinates: [parseFloat(form.lng), parseFloat(form.lat)] }
     };
 
     try {
       if (editId) {
-        const res = await fetch('/programuotojai/' + editId, {
+        const res = await fetch('/api/programuotojai/' + editId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(devData)
@@ -58,7 +102,7 @@ function App() {
         setDevs(devs.map(d => d._id === editId ? updatedDev : d));
         setEditId(null);
       } else {
-        const res = await fetch('/programuotojai/', {
+        const res = await fetch('/api/programuotojai/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(devData)
@@ -74,7 +118,7 @@ function App() {
 
   const handleDelete = async (id) => {
     try {
-      await fetch('/programuotojai/' + id, { method: 'DELETE' });
+      await fetch('/api/programuotojai/' + id, { method: 'DELETE' });
       setDevs(devs.filter(d => d._id !== id));
     } catch (err) {
       console.log(err);
@@ -90,11 +134,15 @@ function App() {
       lng: dev.location.coordinates[0],
       lat: dev.location.coordinates[1]
     });
+    const formElement = document.querySelector('form')
+    if (formElement){
+        formElement.scrollIntoView({behavior: 'smooth', block: 'start'})
+    }
   };
 
   
   return React.createElement('div', null,
-    React.createElement('div'),
+    React.createElement('div',{className: 'searchDiv'}, null,
         React.createElement('input',{
             placeholder: 'Ilguma',
             type: 'number',
@@ -109,6 +157,8 @@ function App() {
             value: search.lat,
             onChange: e=>handleSearchChange('lat', e.target.value)
         }),
+        React.createElement('button', {type: 'button', onClick: fetchDevs, className:'search'}, 'Ieškoti'),
+    ),
     React.createElement('form', { onSubmit: handleSubmit },
       React.createElement('input', {
         placeholder: 'Vardas',
@@ -165,10 +215,12 @@ function App() {
           'Koord.: ', dev.location.coordinates[0], ', ', dev.location.coordinates[1],
           React.createElement('br'),
           React.createElement('button', { onClick: () => handleEdit(dev) }, 'Redaguoti'),
-          React.createElement('button', { onClick: () => handleDelete(dev._id) }, 'Ištrinti')
+          React.createElement('button', { onClick: () => handleDelete(dev._id) }, 'Ištrinti'),
+
         )
-      )
-    )
+    ),
+    React.createElement(DevMap, {devs})
+)
   );
 }
 
